@@ -1,6 +1,6 @@
 # 从 wot-ui/ci 迁移
 
-旧入口 `wot-ui/ci@v0` 及已经发布的精确标签继续可用。新接入使用独立仓库：
+旧入口 `wot-ui/ci@v0` 及已经发布的精确标签继续可用。核心仓库 `main` 已移除 Action 实现；使用 `wot-ui/ci@main` 的工作流需迁移到独立仓库。新接入使用：
 
 ```yaml
 - uses: wot-ui/ci-action@v1

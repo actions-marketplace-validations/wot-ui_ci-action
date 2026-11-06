@@ -191,6 +191,6 @@ Action 当前不声明结构化 `outputs`，不能使用 `steps.<id>.outputs.jso
 
 多平台可分别调用上述步骤，或在 job 上使用 `strategy.matrix.include` 为每个平台设置构建命令、产物路径和 Secret 名称，再通过 `${{ matrix.platform }}`、`${{ secrets[matrix.appid_secret] }}` 等传入。每个无配置模式调用只选一个平台；矩阵归档时在 artifact 名称中加入 `${{ matrix.platform }}` 避免重名。需要在一次发布中统一编排多个平台时使用配置文件模式的 `release`。
 
-核心仓库的真实平台工作流见 [upload-playground.yml](https://github.com/wot-ui/ci/blob/main/.github/workflows/upload-playground.yml)：它使用保留的旧 Action 入口，并显式绑定当前构建的 CLI。新仓库 CI 通过 `uses: ./` 验证独立 Action 和已发布 CLI 的 dry-run；不包含真实平台上传验收。
+核心仓库的真实平台工作流见 [upload-playground.yml](https://github.com/wot-ui/ci/blob/main/.github/workflows/upload-playground.yml)：它调用 `wot-ui/ci-action@v1.0.0`，并显式绑定核心仓库当前构建的 CLI。新仓库 CI 通过 `uses: ./` 验证独立 Action 和已发布 CLI 的 dry-run；不包含真实平台上传验收。
 
 维护者发布流程（含 Marketplace 上架的人工那一步）见 [docs/releasing.md](releasing.md)。
