@@ -9,13 +9,13 @@ import { resolvePackageVersion } from './github-action-version.mjs'
 // credentials, project files and npm logs must never enter this cache.
 const env = process.env
 const cwd = path.resolve(env.INPUT_WORKING_DIRECTORY || '.')
-const registry = env.INPUT_REGISTRY || env.npm_config_registry || env.NPM_CONFIG_REGISTRY || 'https://registry.npmjs.org/'
+const registry = env.npm_config_registry || env.NPM_CONFIG_REGISTRY || 'https://registry.npmjs.org/'
 const digest = createHash('sha256').update(JSON.stringify({
   platform: process.platform,
   arch: process.arch,
   node: process.version,
   registry,
-  version: resolvePackageVersion(env),
+  version: resolvePackageVersion(),
   // Changes to the tested CLI version invalidate the cache.
   manifest: readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
   script: readFileSync(new URL('./github-action.sh', import.meta.url), 'utf8'),

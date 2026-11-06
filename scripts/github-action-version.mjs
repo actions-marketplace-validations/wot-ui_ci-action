@@ -4,8 +4,8 @@ import { fileURLToPath } from 'node:url'
 
 const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
 
-export function resolvePackageVersion(env = process.env) {
-  return env.INPUT_PACKAGE_VERSION?.trim() || manifest.wotciVersion
+export function resolvePackageVersion() {
+  return manifest.wotciVersion
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url))

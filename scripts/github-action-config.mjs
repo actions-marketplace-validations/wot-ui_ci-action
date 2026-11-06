@@ -47,12 +47,6 @@ function prepareConfig(directory) {
     return
   }
 
-  const extraArgs = (input('ARGS') ?? '').split(/\s+/)
-  // Legacy callers may select a config or another cwd through passthrough args.
-  // Keep that route intact unless they explicitly opt into direct inputs.
-  if (!explicitDirect && extraArgs.some(arg => /^(?:--config|--cwd|-c)(?:=|$)/.test(arg)))
-    return
-
   const pkg = readPackage()
   // Existing workflows often pass credentials via env into an auto-discovered
   // config. Never replace that config merely because those env vars are present.
@@ -72,8 +66,6 @@ function prepareConfig(directory) {
   const command = (input('COMMAND') ?? 'upload').trim()
   if (!['upload', 'preview', 'doctor'].includes(command))
     fail('无配置文件模式支持 upload / preview / doctor；其他命令请使用配置文件')
-  if (extraArgs.some(arg => /^(?:--config|--cwd|--platform|--all|-c|-p)(?:=|$)/.test(arg)))
-    fail('无配置文件模式不能通过 args 覆盖 config、cwd 或 platform；请使用对应 input')
 
   const prefix = platform.toUpperCase()
   const platformValue = key => choose(key, `${prefix}_${key}`)

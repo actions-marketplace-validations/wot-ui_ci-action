@@ -77,7 +77,6 @@ jobs:
           dry-run: 'true'
           json-output: artifacts/result.json
           summary: artifacts/summary.md
-          node-version: '22'
       - name: Verify dry-run result
         run: node scripts/verify-smoke.mjs
       - uses: actions/upload-artifact@v4

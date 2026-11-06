@@ -16,15 +16,15 @@ pnpm verify:action
 
 ## 更新 CLI
 
-同时修改 `package.json.wotciVersion` 与 `devDependencies.@wot-ui/ci`，更新锁文件并跑检查。该版本是没有本地 CLI、没有 `package-version` 时的默认值。Action 版本独立递增，不从 Action 标签推断 CLI 版本。
+同时修改 `package.json.wotciVersion` 与 `devDependencies.@wot-ui/ci`，更新锁文件并跑检查。该版本是没有本地 CLI 时的默认值。Action 版本独立递增，不从 Action 标签推断 CLI 版本。
 
 ## 发布 Action
 
 1. 更新 `package.json.version` 与锁文件，合并通过 CI 的提交。
-2. 在该提交创建精确标签，例如 `v1.0.1`，运行 `pnpm verify:release v1.0.1` 后推送标签。
+2. 在该提交创建精确标签，例如 `v2.0.0`，运行 `pnpm verify:release v2.0.0` 后推送标签。
 3. `Release` 工作流重新验证元数据、测试与 composite dry-run，通过后生成 draft release。
 4. 打开 draft，勾选 **Publish this Action to the GitHub Marketplace**，选择分类并发布。
-5. `Update major tag` 自动把 `v1` 指向最新稳定发布。预发布不会更新主版本标签。
+5. `Update major tag` 自动把 `v2` 指向最新稳定发布。预发布不会更新主版本标签。
 
 手动重跑 `Release` 时，必须同时选择同一个 tag 作为 workflow ref 和输入 `tag`；可直接使用 GitHub 的 Re-run failed jobs。
 

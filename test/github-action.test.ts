@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -33,19 +33,17 @@ describe('action.yml', () => {
       runs: { steps: { uses?: string, run?: string, shell?: string, env?: Record<string, string>, with?: Record<string, string> }[] }
     }
     const execution = action.runs.steps.find(step => step.run?.includes('github-action.sh'))!
+    const names = JSON.parse(execFileSync(process.execPath, ['--input-type=module', '-e', `import { inputNames } from ${JSON.stringify(new URL('../scripts/github-action-inputs.mjs', import.meta.url).href)}; console.log(JSON.stringify(inputNames))`], { encoding: 'utf8' }))
+    expect(Object.keys(action.inputs).sort()).toEqual(names.sort())
+    expect(action.runs.steps.find(step => step.uses?.startsWith('actions/setup-node@'))?.with?.['node-version']).toBe('22')
+    expect(execution.env?.WOTCI_INPUTS_JSON).toBe(`\${{ toJSON(inputs) }}`)
     expect(execution.shell).toBe('bash')
     expect(execution.env?.WOTCI_ACTION_REF).toBeUndefined()
     expect(execution.run).not.toMatch(/inputs[.[]/)
     for (const [name, definition] of Object.entries(action.inputs)) {
       const reference = `\${{ inputs.${name} }}`
-      if (name === 'node-version') {
-        const setup = action.runs.steps.find(step => step.uses?.startsWith('actions/setup-node@'))!
-        expect(setup.with?.['node-version']).toBe(reference)
-      }
-      else {
-        const key = `INPUT_${name.toUpperCase().replaceAll('-', '_')}`
-        expect(execution.env?.[key], name).toBe(reference)
-      }
+      const key = `INPUT_${name.toUpperCase().replaceAll('-', '_')}`
+      expect(execution.env?.[key], name).toBe(reference)
       if (definition.default !== undefined)
         expect(typeof definition.default, name).toBe('string')
     }
@@ -67,6 +65,40 @@ describe('action.yml', () => {
 })
 
 describe.skipIf(process.platform === 'win32')('github-action.sh', () => {
+  it.each(['json', 'network', 'yes', 'version', 'pr-comment', 'history', 'args', 'package-version', 'registry', 'install-dependencies', 'node-version'])('rejects removed input %s before CLI invocation', async (name) => {
+    const cwd = await createProject()
+    const bin = path.join(cwd, 'node_modules/.bin')
+    await mkdir(bin, { recursive: true })
+    await writeFakeCli(path.join(bin, 'wotci'))
+    const outputFile = path.join(cwd, 'args.txt')
+    for (const supplied of [
+      { [`INPUT_${name.toUpperCase().replaceAll('-', '_')}`]: 'false' },
+      { WOTCI_INPUTS_JSON: JSON.stringify({ [name]: 'secret-not-to-log' }) },
+    ]) {
+      const result = spawnSync('bash', [scriptPath], {
+        env: { ...process.env, INPUT_WORKING_DIRECTORY: cwd, OUTPUT_FILE: outputFile, ...supplied },
+        encoding: 'utf8',
+      })
+      expect(result.status).toBe(1)
+      expect(result.stderr).toContain('v2')
+      expect(result.stderr).not.toContain('secret-not-to-log')
+      await expect(readFile(outputFile)).rejects.toThrow()
+    }
+  })
+
+  it('passes a preview QR path as one argument with config reuse', async () => {
+    const cwd = await createProject()
+    const bin = path.join(cwd, 'node_modules/.bin')
+    await mkdir(bin, { recursive: true })
+    await writeFakeCli(path.join(bin, 'wotci'))
+    const outputFile = path.join(cwd, 'args.txt')
+    const env = { ...process.env, INPUT_WORKING_DIRECTORY: cwd, OUTPUT_FILE: outputFile, INPUT_CONFIG: 'wotci.config.ts', INPUT_QRCODE_OUTPUT: 'qr output/$(not-executed).png' }
+    const result = spawnSync('bash', [scriptPath], { env: { ...env, INPUT_COMMAND: 'preview' }, encoding: 'utf8' })
+    expect(result.status, result.stderr).toBe(0)
+    expect((await readFile(outputFile, 'utf8')).trim().split('\n')).toEqual(['preview', '-c', 'wotci.config.ts', '--qr-output', env.INPUT_QRCODE_OUTPUT])
+    expect(spawnSync('bash', [scriptPath], { env: { ...env, INPUT_COMMAND: 'upload' }, encoding: 'utf8' }).stderr).toContain('qrcode-output 仅用于')
+  })
+
   it('组装 upload 参数并调用本地 wotci', async () => {
     const cwd = await createProject()
     const binDir = path.join(cwd, 'node_modules/.bin')
@@ -77,16 +109,12 @@ describe.skipIf(process.platform === 'win32')('github-action.sh', () => {
     execFileSync('bash', [scriptPath], {
       env: {
         ...process.env,
-        INPUT_ARGS: '--concurrency 2',
         WOTCI_ACTION_REF: 'v0.5.0',
-        INPUT_PACKAGE_VERSION: '9.9.9',
         INPUT_COMMAND: 'upload',
         INPUT_CONFIG: 'wotci.config.ts',
         INPUT_DRY_RUN: 'true',
-        INPUT_HISTORY: 'false',
-        INPUT_JSON: 'true',
+        INPUT_JSON_OUTPUT: 'result.json',
         INPUT_PLATFORM: 'weixin,alipay',
-        INPUT_PR_COMMENT: 'false',
         INPUT_SUMMARY: 'summary.md',
         INPUT_WORKING_DIRECTORY: cwd,
         OUTPUT_FILE: outputFile,
@@ -102,12 +130,8 @@ describe.skipIf(process.platform === 'win32')('github-action.sh', () => {
       'wotci.config.ts',
       '--json',
       '--dry-run',
-      '--no-pr-comment',
-      '--no-history',
       '--summary',
       'summary.md',
-      '--concurrency',
-      '2',
     ])
   })
 
@@ -122,7 +146,6 @@ describe.skipIf(process.platform === 'win32')('github-action.sh', () => {
       env: {
         ...process.env,
         INPUT_COMMAND: 'doctor',
-        INPUT_PACKAGE_VERSION: '1.2.3',
         WOTCI_ACTION_REF: 'v0.5.0',
         INPUT_WORKING_DIRECTORY: cwd,
         OUTPUT_FILE: outputFile,
@@ -131,7 +154,7 @@ describe.skipIf(process.platform === 'win32')('github-action.sh', () => {
     })
 
     const args = (await readFile(outputFile, 'utf8')).trim().split('\n')
-    expect(args).toEqual(['--yes', '--registry', expect.any(String), '--cache', expect.any(String), '@wot-ui/ci@1.2.3', 'doctor'])
+    expect(args).toEqual(['--yes', '--registry', expect.any(String), '--cache', expect.any(String), '@wot-ui/ci@0.5.3', 'doctor'])
   })
 
   it.each(['v1.0.0', 'v2.0.0', 'v1.1.0-beta.1'])('action ref 不影响默认 CLI 版本: %s', async (ref) => {
@@ -147,7 +170,6 @@ describe.skipIf(process.platform === 'win32')('github-action.sh', () => {
         GITHUB_ACTION_REF: '',
         WOTCI_ACTION_REF: ref,
         INPUT_COMMAND: 'doctor',
-        INPUT_PACKAGE_VERSION: '',
         INPUT_WORKING_DIRECTORY: cwd,
         OUTPUT_FILE: outputFile,
         PATH: `${binDir}:${process.env.PATH}`,
@@ -170,7 +192,6 @@ describe.skipIf(process.platform === 'win32')('github-action.sh', () => {
         ...process.env,
         WOTCI_ACTION_REF: ref,
         INPUT_COMMAND: 'doctor',
-        INPUT_PACKAGE_VERSION: '',
         INPUT_WORKING_DIRECTORY: cwd,
         OUTPUT_FILE: outputFile,
         PATH: `${binDir}:${process.env.PATH}`,

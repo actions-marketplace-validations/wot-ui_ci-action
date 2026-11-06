@@ -87,7 +87,7 @@ process.exit(child.status ?? 1)
   return {
     ...fixture,
     run: (extra: Record<string, string> = {}) => fixture.run({
-      INPUT_JSON: 'true',
+      INPUT_JSON_OUTPUT: 'result.json',
       INPUT_DRY_RUN: 'true',
       ...extra,
       PATH: `${fixture.cwd}:${process.env.PATH}`,
@@ -124,7 +124,6 @@ describe.skipIf(process.platform === 'win32')('config-free composite action', ()
         threads: 2,
         bigPackageSizeSupport: false,
       },
-      ide: { cliPath: '/path with spaces/cli', port: 9420, lang: 'zh' },
     }
     const result = fixture.run({ ...weixinInputs(), INPUT_PLATFORM_OPTIONS: JSON.stringify(options) })
     expect(result.status, result.stderr).toBe(0)
@@ -158,8 +157,8 @@ describe.skipIf(process.platform === 'win32')('config-free composite action', ()
     const options = platform === 'weixin'
       ? { type: 'miniGame', ignores: ['test/**'] }
       : platform === 'alipay'
-        ? { clientType: 'amap', autoincrement: false, ide: { appPath: '/Applications/IDE' } }
-        : { projectType: 'dingtalk-biz', autoincrement: true }
+        ? { clientType: 'amap', autoincrement: false }
+        : { autoincrement: true }
     const preview = platform === 'weixin'
       ? { pagePath: 'pages/index', scene: 1011 }
       : { page: 'pages/home', pageQuery: 'x=1', query: 'y=2', scene: 'test', autoPush: false, ignoreHttpDomainCheck: true, ignoreWebViewDomainCheck: false }
@@ -185,6 +184,7 @@ describe.skipIf(process.platform === 'win32')('config-free composite action', ()
     { INPUT_SETTING: '{"minifyJS":"false"}' },
     { INPUT_SETTING: '{"minifyJS":null}' },
     { INPUT_SETTING: '[true]' },
+    { INPUT_PLATFORM_OPTIONS: '{"ide":{"port":9420}}' },
     { INPUT_SETTING: '{secret-value-not-to-log' },
     { INPUT_PREVIEW: '{"setting":{"minifyJS":1}}' },
     { INPUT_PREVIEW: '{"robot":31}' },
@@ -215,6 +215,8 @@ describe.skipIf(process.platform === 'win32')('config-free composite action', ()
     ['alipay', { INPUT_PREVIEW: '{"pagePath":"pages/index"}' }],
     ['alipay', { INPUT_PLATFORM_OPTIONS: '{"autoincrement":"false"}' }],
     ['dingtalk', { INPUT_PREVIEW: '{}' }],
+    ['dingtalk', { INPUT_PLATFORM_OPTIONS: '{"projectType":"dingtalk-biz"}' }],
+    ['alipay', { INPUT_PLATFORM_OPTIONS: '{"ide":{"appPath":"/Applications/IDE"}}' }],
     ['dingtalk', { INPUT_PLATFORM_OPTIONS: '{"clientType":"alipay"}' }],
   ] as const)('rejects fields not supported by %s', async (platform, extra) => {
     const fixture = await createFixture()
@@ -322,24 +324,24 @@ describe.skipIf(process.platform === 'win32')('config-free composite action', ()
     expect((await fixture.captured()).config.weixin.appid).toBe('wx-fixture')
   })
 
-  it('preserves legacy config selection through passthrough args', async () => {
+  it('selects an explicit config file', async () => {
     const fixture = await createFixture()
     const configFile = path.join(fixture.cwd, 'custom.cjs')
     await writeFile(configFile, 'module.exports = { version: "3.0.0" }')
     const result = fixture.run({
       INPUT_PLATFORM: 'weixin',
-      INPUT_ARGS: '--config custom.cjs',
+      INPUT_CONFIG: configFile,
       WEIXIN_APPID: 'legacy-env-app',
     })
     expect(result.status, result.stderr).toBe(0)
-    expect((await fixture.captured()).args).toEqual(['upload', '-p', 'weixin', '--config', 'custom.cjs'])
+    expect((await fixture.captured()).args).toEqual(['upload', '-p', 'weixin', '-c', configFile])
   })
 
-  it('does not intercept a legacy command without direct upload parameters', async () => {
+  it.each(['version latest', 'release', 'experience set', 'upload --help'])('rejects unsupported command %s even without direct inputs', async (command) => {
     const fixture = await createFixture()
-    const result = fixture.run({ INPUT_COMMAND: 'version latest', INPUT_PLATFORM: 'weixin' })
-    expect(result.status, result.stderr).toBe(0)
-    expect((await fixture.captured()).args).toEqual(['version', 'latest', '-p', 'weixin'])
+    const result = fixture.run({ INPUT_COMMAND: command, INPUT_PLATFORM: 'weixin' })
+    expect(result.status, result.stderr).toBe(1)
+    await expect(readFile(fixture.outputFile)).rejects.toThrow()
   })
 
   it.each([
@@ -352,9 +354,9 @@ describe.skipIf(process.platform === 'win32')('config-free composite action', ()
     [{ INPUT_PLATFORM: 'weixin,alipay' }, '一个 platform'],
     [{ INPUT_CONFIG: 'wotci.config.ts' }, '不能与'],
     [{ INPUT_COMMAND: 'release' }, '其他命令'],
-    [{ INPUT_ARGS: '--cwd another-project' }, '不能通过 args'],
-    [{ INPUT_ARGS: '-c another-config.cjs' }, '不能通过 args'],
-    [{ INPUT_ARGS: '--all' }, '不能通过 args'],
+    [{ INPUT_ARGS: '--cwd another-project' }, '已移除 args'],
+    [{ INPUT_ARGS: '-c another-config.cjs' }, '已移除 args'],
+    [{ INPUT_ARGS: '--all' }, '已移除 args'],
     [{ INPUT_TOKEN: 'test-only-token' }, '不匹配'],
     [{ INPUT_PLATFORM: 'alipay' }, 'tool-id'],
     [{ INPUT_PLATFORM: 'dingtalk' }, '钉钉不支持'],
@@ -412,9 +414,9 @@ describe.skipIf(process.platform === 'win32')('config-free composite action', ()
     expect(await readdir(fixture.runnerTemp)).toEqual([])
   })
 
-  it('cleans materialized credentials when dependency installation fails before the CLI starts', async () => {
+  it('cleans materialized credentials when CLI preparation fails before the CLI starts', async () => {
     const fixture = await createFixture()
-    const npm = path.join(fixture.cwd, 'npm')
+    const npm = path.join(fixture.cwd, 'npx')
     await writeFile(npm, `#!/usr/bin/env node
 const fs = require('node:fs')
 const path = require('node:path')
@@ -424,7 +426,8 @@ fs.writeFileSync(path.join(process.cwd(), 'install-observed.json'), JSON.stringi
 process.exit(17)
 `)
     await chmod(npm, 0o755)
-    const result = fixture.run({ ...weixinInputs(), INPUT_INSTALL_DEPENDENCIES: 'true', PATH: `${fixture.cwd}:${process.env.PATH}` })
+    await rm(path.dirname(path.dirname(fixture.cli)), { recursive: true })
+    const result = fixture.run({ ...weixinInputs(), PATH: `${fixture.cwd}:${process.env.PATH}` })
     expect(result.status, result.stderr).toBe(17)
     expect(JSON.parse(await readFile(path.join(fixture.cwd, 'install-observed.json'), 'utf8'))).toEqual({ keyMode: 0o600 })
     await expect(readFile(fixture.outputFile)).rejects.toThrow()
@@ -488,6 +491,21 @@ process.exit(17)
     const result = fixture.run(weixinInputs())
     expect(result.status, result.stderr).toBe(0)
     expect((await fixture.captured()).ok).toBe(true)
+    expect(await readdir(fixture.runnerTemp)).toEqual([])
+  }, 20000)
+
+  it.each(['weixin', 'alipay'])('real CLI accepts preview QR output for %s without SDK calls', async (platform) => {
+    const fixture = await createRealCliFixture()
+    const result = fixture.run({
+      ...weixinInputs(),
+      INPUT_COMMAND: 'preview',
+      INPUT_PLATFORM: platform,
+      INPUT_QRCODE_OUTPUT: 'qr output/preview.png',
+      ...(platform === 'alipay' ? { INPUT_TOOL_ID: 'test-tool' } : {}),
+    })
+    expect(result.status, result.stderr).toBe(0)
+    expect((await fixture.captured()).ok).toBe(true)
+    await expect(readFile(path.join(fixture.cwd, 'qr output/preview.png'))).rejects.toThrow()
     expect(await readdir(fixture.runnerTemp)).toEqual([])
   }, 20000)
 

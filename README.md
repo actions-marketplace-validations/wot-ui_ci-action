@@ -30,12 +30,12 @@ jobs:
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
 
-      - uses: wot-ui/ci-action@v1
+      - uses: wot-ui/ci-action@v2
         with:
           platform: weixin
           project-path: dist/build/mp-weixin
@@ -49,9 +49,7 @@ jobs:
 
 ## 常用参数
 
-这里只列常用项；[完整参数手册](docs/inputs.md) 逐项说明全部 30 个 inputs 的类型、默认值、平台要求、优先级和互斥规则。
-
-[配置模式](docs/inputs.md#先选择配置模式) · [环境变量](docs/inputs.md#环境变量对照) · [编译与预览 JSON 字段](docs/inputs.md#编译预览与平台扩展参数) · [参数排错](docs/inputs.md#参数排错)
+这里只列常用项；[完整参数手册](docs/inputs.md) 按上传、预览和结果文件说明参数、默认值与平台差异。
 
 | 参数 | 说明 |
 | --- | --- |
@@ -63,8 +61,7 @@ jobs:
 | `upload-version` | 上传版本，默认读取项目 `package.json.version` |
 | `working-directory` | 执行目录，默认 `.` |
 | `dry-run` | `'true'` 时只校验上传计划 |
-| `config` | 复用项目配置文件，用于多平台或发布编排 |
-| `package-version` | 自动安装的 CLI 版本；默认使用 Action 内记录的已验证版本 |
+| `config` | 复用项目配置文件，支持多平台 |
 
 支付宝额外传 `tool-id`；钉钉传 `token`，不传私钥。无配置模式每次选择一个平台，多平台可使用矩阵或配置文件。
 
@@ -73,16 +70,16 @@ jobs:
 将微信步骤改为 `command: preview`，添加以下参数，再用 `actions/upload-artifact@v4` 归档结果：
 
 ```yaml
-preview: '{"qrcodeOutputDest":"artifacts/preview.png"}'
+qrcode-output: artifacts/preview.png
 json-output: artifacts/result.json
 ```
 
-Action 保留 CLI 失败退出码，当前不提供 `steps.<id>.outputs`。完整预览、Summary 与归档流程见 [使用指南](docs/usage.md#预演预览与结果归档)。
+Action 保留 CLI 失败退出码，当前不提供 `steps.<id>.outputs`。完整预览、Summary 与归档流程见 [使用指南](docs/usage.md#预览和结果归档)。
 
 ## 版本规则
 
-Action 与 CLI 独立版本管理：`@v1` 是 Action 的兼容主版本，`@v1.0.0` 是精确 Action 版本。v1.0.0 默认安装并验证 `@wot-ui/ci@0.5.3`，不会把 Action 标签当作 CLI 版本。
+Action 与 CLI 独立版本管理：`@v2` 是 Action 的兼容主版本，`@v2.0.0` 是精确 Action 版本。v2.0.0 默认安装并验证 `@wot-ui/ci@0.5.3`，不会把 Action 标签当作 CLI 版本。
 
-已有项目本地 CLI 时优先使用本地版本；`package-version` 只控制无本地 CLI 时的安装版本。升级和兼容说明见 [迁移指南](docs/migration.md)。
+已有项目本地 CLI 时优先使用本地版本。v2 仅提供上传、预览和配置检查；v1 保持可用。删除的扩展参数及替代方式见 [迁移指南](docs/migration.md)。
 
 MIT © wot-ui

@@ -94,16 +94,13 @@ export function validatePlatformOptions(platform, options) {
       robot,
       setting,
       preview: weixinPreview,
-      ide: value => check(value, { cliPath: string, port: value => Number.isInteger(value) && value > 0 && value <= 65535, lang: oneOf(['zh', 'en']) }, 'ide'),
     },
     alipay: {
       clientType: oneOf(['alipay', 'ampe', 'amap', 'genie', 'alios', 'uc', 'quark', 'koubei', 'alipayiot', 'cainiao', 'alihealth', 'health']),
       autoincrement: boolean,
       preview: alipayPreview,
-      ide: value => check(value, { appPath: string }, 'ide'),
     },
     dingtalk: {
-      projectType: oneOf(['dingtalk-personal', 'dingtalk-biz-isv', 'dingtalk-biz', 'dingtalk-biz-custom', 'dingtalk-biz-worktab-plugin']),
       autoincrement: boolean,
     },
   }

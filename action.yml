@@ -8,7 +8,7 @@ branding:
 
 inputs:
   command:
-    description: CLI command, e.g. upload, preview, release, doctor, build-npm, sourcemap, inspect, quality
+    description: Operation to run. One of upload, preview or doctor
     required: false
     default: upload
   platform:
@@ -72,80 +72,34 @@ inputs:
     required: false
     default: .
   summary:
-    description: Markdown summary file. Typically $GITHUB_STEP_SUMMARY
+    description: Markdown result file for upload or preview, relative to working-directory. Publish it to the job summary in a following step
     required: false
     default: ''
-  json:
-    description: Print JSON to stdout
+  qrcode-output:
+    description: Preview QR code file path, relative to working-directory. Only valid for command preview
     required: false
-    default: 'false'
+    default: ''
   json-output:
-    description: Save CLI JSON stdout to this file (relative to working-directory). Enables json and preserves CLI failures
+    description: Save CLI JSON stdout to this file (relative to working-directory). Enables JSON output and preserves CLI failures
     required: false
     default: ''
   dry-run:
     description: Validate config without calling SDK
     required: false
     default: 'false'
-  network:
-    description: Run doctor network checks
-    required: false
-    default: 'false'
-  yes:
-    description: Confirm destructive operations such as version delete
-    required: false
-    default: 'false'
-  version:
-    description: Target app version for experience / version delete
-    required: false
-    default: ''
-  pr-comment:
-    description: auto, true or false. Only applies to release
-    required: false
-    default: auto
-  history:
-    description: auto, true or false. Only applies to release
-    required: false
-    default: auto
-  args:
-    description: Extra CLI arguments, space separated
-    required: false
-    default: ''
-  package-version:
-    description: >-
-      @wot-ui/ci version used via npx when the project does not have it installed.
-      Empty uses the tested CLI version recorded in this action release (currently 0.5.3).
-      Action tags and CLI versions are independent; an installed project CLI takes precedence
-    required: false
-    default: ''
-  registry:
-    description: CLI installation registry. Empty uses npm_config_registry / NPM_CONFIG_REGISTRY, then https://registry.npmjs.org/. Does not change project dependency installation
-    required: false
-    default: ''
-  install-dependencies:
-    description: Run package manager install before wotci
-    required: false
-    default: 'false'
-  node-version:
-    description: Node.js version used by actions/setup-node
-    required: false
-    default: '20'
-
 runs:
   using: composite
   steps:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: ${{ inputs.node-version }}
+        node-version: '22'
 
     - name: Prepare CLI cache
       id: wotci-cache-config
       shell: bash
       env:
         INPUT_WORKING_DIRECTORY: ${{ inputs.working-directory }}
-        INPUT_PACKAGE_VERSION: ${{ inputs.package-version }}
-        INPUT_REGISTRY: ${{ inputs.registry }}
       run: node "${{ github.action_path }}/scripts/github-action-cache.mjs"
 
     - name: Restore CLI cache
@@ -163,6 +117,8 @@ runs:
       id: wotci-run
       shell: bash
       env:
+        WOTCI_INPUTS_JSON: ${{ toJSON(inputs) }}
+        INPUT_QRCODE_OUTPUT: ${{ inputs.qrcode-output }}
         INPUT_COMMAND: ${{ inputs.command }}
         INPUT_PLATFORM: ${{ inputs.platform }}
         INPUT_CONFIG: ${{ inputs.config }}
@@ -180,19 +136,9 @@ runs:
         INPUT_PLATFORM_OPTIONS: ${{ inputs.platform-options }}
         INPUT_WORKING_DIRECTORY: ${{ inputs.working-directory }}
         INPUT_SUMMARY: ${{ inputs.summary }}
-        INPUT_JSON: ${{ inputs.json }}
         INPUT_JSON_OUTPUT: ${{ inputs.json-output }}
         INPUT_DRY_RUN: ${{ inputs.dry-run }}
-        INPUT_NETWORK: ${{ inputs.network }}
-        INPUT_YES: ${{ inputs.yes }}
-        INPUT_VERSION: ${{ inputs.version }}
-        INPUT_PR_COMMENT: ${{ inputs.pr-comment }}
-        INPUT_HISTORY: ${{ inputs.history }}
-        INPUT_ARGS: ${{ inputs.args }}
-        INPUT_PACKAGE_VERSION: ${{ inputs.package-version }}
-        INPUT_REGISTRY: ${{ inputs.registry }}
         WOTCI_NPM_CACHE: ${{ steps.wotci-cache-config.outputs.path }}
-        INPUT_INSTALL_DEPENDENCIES: ${{ inputs.install-dependencies }}
       run: bash "${{ github.action_path }}/scripts/github-action.sh"
 
     - name: Save CLI cache

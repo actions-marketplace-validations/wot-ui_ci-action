@@ -34,17 +34,16 @@ async function fixture() {
   }
 }
 
-it('keeps cache keys stable but isolates package selectors and registries without exposing credentials', async () => {
+it('keeps cache keys stable but isolates registries without exposing credentials', async () => {
   const test = await fixture()
   const first = await test.prepare({ WOTCI_ACTION_REF: 'v0.5.1' })
   expect(first.enabled).toBe('true')
   expect(await test.prepare({ WOTCI_ACTION_REF: 'v0.5.1' })).toEqual(first)
   expect((await test.prepare({ WOTCI_ACTION_REF: 'v2.0.0' })).key).toBe(first.key)
-  expect((await test.prepare({ INPUT_PACKAGE_VERSION: '1.0.0' })).key).not.toBe(first.key)
-  const custom = await test.prepare({ INPUT_REGISTRY: 'https://user:secret@registry.example/' })
+  const custom = await test.prepare({ npm_config_registry: 'https://user:secret@registry.example/' })
   expect(custom.key).not.toBe(first.key)
   expect(JSON.stringify(custom)).not.toContain('secret')
-  expect((await test.prepare({ npm_config_registry: 'https://user:secret@registry.example/' })).key).toBe(custom.key)
+  expect((await test.prepare({ NPM_CONFIG_REGISTRY: 'https://user:secret@registry.example/' })).key).toBe(custom.key)
   await mkdir(path.join(test.cwd, 'node_modules/.bin'), { recursive: true })
   await writeFile(path.join(test.cwd, 'node_modules/.bin/wotci'), '')
   expect((await test.prepare()).enabled).toBe('false')
@@ -114,7 +113,7 @@ if (args.includes('--package')) {
     expect(args[args.indexOf('--cache') + 1]).toBe(prepared.path)
   }
   await writeFile(test.output, '')
-  const failure = run({ INSTALL_EXIT: '42', INPUT_REGISTRY: 'https://custom.example/' })
+  const failure = run({ INSTALL_EXIT: '42', npm_config_registry: 'https://custom.example/' })
   expect(failure.status).toBe(42)
   expect(await readFile(test.output, 'utf8')).not.toContain('cli-cache-ready=true')
   expect(failure.stderr).not.toContain('CLI 执行耗时：')

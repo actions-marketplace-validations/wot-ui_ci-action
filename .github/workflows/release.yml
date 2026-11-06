@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing exact version tag, e.g. v1.0.0
+        description: Existing exact version tag, e.g. v2.0.0
         required: true
         type: string
 
