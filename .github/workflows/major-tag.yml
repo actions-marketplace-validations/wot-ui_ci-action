@@ -1,0 +1,47 @@
+name: Update major tag
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published stable release tag, e.g. v1.0.0
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: action-major-tag
+  cancel-in-progress: false
+
+jobs:
+  update:
+    if: ${{ !github.event.release.prerelease }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Advance the compatible major tag
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          set -euo pipefail
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 0
+          gh release view "$TAG" --json isDraft,isPrerelease --jq 'if .isDraft or .isPrerelease then error("Expected a published stable release") else . end'
+          git fetch --force --tags origin
+          major="${TAG%%.*}"
+          latest=$(git tag --list "$major.*" --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1)
+          if [ "$latest" != "$TAG" ]; then
+            echo "Skip older release $TAG; newest tag is $latest"
+            exit 0
+          fi
+          git tag -f "$major" "$TAG^{}"
+          git push origin "refs/tags/$major" --force
+          echo "\`$major\` now points to \`$TAG\`" >> "$GITHUB_STEP_SUMMARY"

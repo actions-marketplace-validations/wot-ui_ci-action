@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            node: 20
+          - os: ubuntu-latest
+            node: 22
+          - os: ubuntu-latest
+            node: 24
+          - os: macos-latest
+            node: 22
+          - os: windows-latest
+            node: 22
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm verify:action
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+
+  composite:
+    name: Composite / ${{ matrix.os }} / ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: weixin
+          - os: ubuntu-latest
+            platform: alipay
+          - os: ubuntu-latest
+            platform: dingtalk
+          - os: macos-latest
+            platform: weixin
+          - os: windows-latest
+            platform: weixin
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Prepare synthetic build output
+        run: node scripts/prepare-smoke.mjs
+      - name: Run the checked-out Action against the published CLI
+        uses: ./
+        with:
+          platform: ${{ matrix.platform }}
+          working-directory: .smoke
+          project-path: build
+          appid: test-only-app
+          private-key: ${{ matrix.platform != 'dingtalk' && 'test-only-inline-key' || '' }}
+          tool-id: ${{ matrix.platform == 'alipay' && 'test-only-tool' || '' }}
+          token: ${{ matrix.platform == 'dingtalk' && 'test-only-token' || '' }}
+          dry-run: 'true'
+          json-output: artifacts/result.json
+          summary: artifacts/summary.md
+          node-version: '22'
+      - name: Verify dry-run result
+        run: node scripts/verify-smoke.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-${{ matrix.os }}-${{ matrix.platform }}
+          path: .smoke/artifacts/
+          if-no-files-found: ignore

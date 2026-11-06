@@ -1,0 +1,59 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing exact version tag, e.g. v1.0.0
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: action-release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/verify-release.mjs
+        env:
+          GITHUB_REF_NAME: ${{ inputs.tag || github.ref_name }}
+
+  # The reusable workflow checks out the triggering ref on tag pushes.
+  # Manual retries must be dispatched on the same exact tag.
+  test:
+    if: ${{ github.event_name == 'push' || github.ref_name == inputs.tag }}
+    needs: verify
+    uses: ./.github/workflows/ci.yml
+
+  draft:
+    needs: [verify, test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Create a reviewable Marketplace release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --verify-tag --draft --title "$TAG" --generate-notes
+          fi
+          gh release view "$TAG" --json url --jq .url >> "$GITHUB_STEP_SUMMARY"
+          echo 'Edit the draft, select Publish this Action to the GitHub Marketplace, then publish.' >> "$GITHUB_STEP_SUMMARY"

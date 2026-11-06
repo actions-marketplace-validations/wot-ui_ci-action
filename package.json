@@ -1,0 +1,33 @@
+{
+  "name": "@wot-ui/ci-action",
+  "type": "module",
+  "version": "1.0.0",
+  "private": true,
+  "packageManager": "pnpm@10.25.0",
+  "description": "GitHub Action for Wot CI mini-program uploads and previews",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wot-ui/ci-action.git"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "wotciVersion": "0.5.3",
+  "scripts": {
+    "test": "vitest run",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "verify:action": "node scripts/verify-action-metadata.mjs",
+    "verify:release": "node scripts/verify-release.mjs"
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "6.6.1",
+    "@types/node": "25.0.1",
+    "@wot-ui/ci": "0.5.3",
+    "eslint": "9.39.2",
+    "typescript": "5.9.3",
+    "vitest": "4.0.15",
+    "yaml": "2.8.2"
+  }
+}
