@@ -38,6 +38,6 @@ Action 版本、CLI 版本、上传的小程序版本分别由 `uses`、`package
 
 - 核心工具：[wot-ui/ci](https://github.com/wot-ui/ci)
 - 独立 Action：[wot-ui/ci-action](https://github.com/wot-ui/ci-action)
-- 新 Marketplace 标识：`wot-ui-ci-action`；原 `wot-ui-ci` 条目和历史版本保留。
+- 新 Marketplace 标识：`wot-ui-ci-action`；原 `wot-ui-ci` 条目已下架，历史标签和 Release 保留，旧标签引用仍可使用。
 
 拆仓不转移项目 Secrets。调用方继续在自己的 workflow 中注入原有凭据即可。
