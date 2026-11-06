@@ -7,9 +7,29 @@
 
 本仓库维护 GitHub Action 接入层；CLI、JS API、Vite 插件与核心实现由 [Wot CI](https://github.com/wot-ui/ci) 提供。
 
-[快速开始](#快速开始) · [使用示例](#使用示例) · [全部参数](#参数参考) · [维护与发布](#维护与发布)
+[AI 一键接入](#ai-一键接入) · [快速开始](#快速开始) · [示例 Demo](#示例-demo) · [使用示例](#使用示例) · [全部参数](#参数参考) · [维护与发布](#维护与发布)
 
 对象字段直达：[setting](#setting) · [preview](#preview) · [platform-options](#platform-options)
+
+## AI 一键接入
+
+点击下面代码块右上角的复制按钮，把整段提示词交给能读写项目的 AI 编程助手（如 Codex、Claude Code、Cursor）。AI 会根据项目生成工作流；Secrets 需在自己的 GitHub 仓库中配置。
+
+```text
+请直接为当前项目接入 wot-ui/ci-action，完成文件修改和校验。
+
+先阅读官方 README：https://github.com/wot-ui/ci-action#readme
+
+1. 检查 package.json、锁文件、构建脚本、项目配置和已有 .github/workflows，识别包管理器、Node 版本、目标平台、实际构建命令及产物目录。不要把 Web 构建产物当作小程序产物；只有无法从项目确定的信息才向我询问。
+2. 创建或完善 .github/workflows/miniapp-upload.yml，使用 wot-ui/ci-action@v2。沿用项目的包管理器和锁文件，在 Action 前完成 checkout、依赖安装、小程序构建。Monorepo 要正确设置 working-directory 和相对路径。
+3. 默认 workflow_dispatch 手动触发，提供 dry_run 布尔输入，默认 true，并传给 Action 的 dry-run。填写 platform、project-path、appid 和对应凭据；上传版本默认读取应用目录 package.json.version，没有版本时增加 upload-version 输入。
+4. 微信使用 secrets.WEIXIN_APPID 和 secrets.WEIXIN_PRIVATE_KEY，并显式设置 setting 为 {"useProjectConfig":true,"minifyJS":true,"minifyWXML":true,"minifyWXSS":true}，默认开启 JS、WXML、WXSS 压缩。如果另设 preview.setting，也必须在该对象中开启这三个压缩字段，因为它会整体替换上传设置。
+5. 支付宝使用 ALIPAY_APPID、ALIPAY_TOOL_ID、ALIPAY_PRIVATE_KEY；钉钉使用 DINGTALK_APPID、DINGTALK_TOKEN。只添加项目实际使用的平台，不给支付宝或钉钉传微信 setting。
+6. 若项目已有 wotci 配置，优先复用 config，在配置文件中读取凭据并设置微信压缩；不要同时传 config 和 appid、project-path、setting 等直接配置参数。仅为接入 Action 时，不要求额外安装 @wot-ui/ci。
+7. 保存 json-output 和 summary，后续步骤使用 if: always() 将 summary 文件追加到 $GITHUB_STEP_SUMMARY，并用 actions/upload-artifact 归档。路径要与 working-directory 对齐，文件不存在时不要让归档步骤掩盖原始错误。
+8. 校验 YAML、Action 参数和所有路径，运行项目已有的相关检查及小程序构建。不要编造成功结果；无法运行的检查要注明原因。完成接入时不自动触发真实上传。
+9. 最后说明修改了哪些文件、需要配置哪些 Secrets、微信 CI IP 白名单要求，以及如何在 Actions 中先跑 dry-run，再取消 dry_run 执行实际上传。不要把凭据写进代码或日志。
+```
 
 ## 快速开始
 
@@ -20,6 +40,11 @@ name: Upload mini-program
 
 on:
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 仅检查配置和产物，不上传
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -35,7 +60,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm build
+      - run: pnpm build:mp-weixin
 
       - uses: wot-ui/ci-action@v2
         with:
@@ -43,11 +68,44 @@ jobs:
           project-path: dist/build/mp-weixin
           appid: ${{ secrets.WEIXIN_APPID }}
           private-key: ${{ secrets.WEIXIN_PRIVATE_KEY }}
+          setting: '{"useProjectConfig":true,"minifyJS":true,"minifyWXML":true,"minifyWXSS":true}'
+          dry-run: ${{ inputs.dry_run && 'true' || 'false' }}
+          json-output: artifacts/upload.json
+          summary: artifacts/upload-summary.md
+
+      - name: Show upload summary
+        if: always()
+        shell: bash
+        run: |
+          if [ -f artifacts/upload-summary.md ]; then
+            cat artifacts/upload-summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: miniapp-upload
+          path: artifacts/
+          if-no-files-found: warn
 ```
 
-示例要求项目在 `package.json.packageManager` 中指定 pnpm 版本。按项目实际情况调整安装、构建命令和产物目录。Action 默认执行上传，上传版本读取项目的 `package.json.version`。
+示例适用于使用 pnpm 的 uni-app 项目，要求 `package.json.packageManager` 指定 pnpm 版本，并有 `build:mp-weixin` 脚本。按项目实际情况调整安装、构建命令和产物目录。Action 默认执行上传，上传版本读取项目的 `package.json.version`。
 
 微信上传前需配置公众平台的 CI IP 白名单。Action 会创建临时私钥文件并在结束后清理；已有私钥文件可使用 `private-key-path`。
+
+此示例显式开启微信 JS、WXML、WXSS 压缩。首次运行保留 `dry_run` 勾选；检查通过后取消勾选执行实际上传。若改为预览，未设置 `preview.setting` 时会沿用同一套压缩设置。
+
+## 示例 Demo
+
+可运行的 Demo 使用核心仓库的 [uni-app Playground](https://github.com/wot-ui/ci/tree/main/playground)：
+
+| 内容 | 入口 |
+| --- | --- |
+| 示例小程序源码 | [playground](https://github.com/wot-ui/ci/tree/main/playground) |
+| 上传 / 预览工作流 | [upload-playground.yml](https://github.com/wot-ui/ci/blob/main/.github/workflows/upload-playground.yml) |
+| 三平台配置、微信默认压缩 | [wotci.config.ts](https://github.com/wot-ui/ci/blob/main/playground/wotci.config.ts) |
+
+Fork 核心仓库后，在自己的仓库配置对应平台 Secrets，再到 **Actions → Upload Playground → Run workflow** 选择平台、`upload` / `preview` 和 `dry-run`。微信默认开启 `minifyJS`、`minifyWXML`、`minifyWXSS`，预览沿用上传设置；钉钉只支持上传。此 Demo 使用配置文件模式，并绑定仓库本次构建的 CLI；普通项目接入可直接复制上方 workflow。
 
 ## 使用示例
 
@@ -104,6 +162,7 @@ jobs:
     project-path: dist/build/mp-weixin
     appid: ${{ secrets.WEIXIN_APPID }}
     private-key: ${{ secrets.WEIXIN_PRIVATE_KEY }}
+    setting: '{"useProjectConfig":true,"minifyJS":true,"minifyWXML":true,"minifyWXSS":true}'
     preview: '{"pagePath":"pages/index/index","searchQuery":"from=ci"}'
     qrcode-output: artifacts/preview.png
     json-output: artifacts/result.json
@@ -243,6 +302,8 @@ setting: |
   }
 ```
 
+本页微信示例和 Playground 显式开启三项压缩。Action 接口本身不会为所有项目强制开启压缩，省略字段的行为仍以上表为准。
+
 这些选项传给微信 SDK，Action 本身不执行源码构建；产物仍需提前生成。
 
 ### 预览设置
@@ -286,7 +347,9 @@ preview: |
     "setting": {
       "useProjectConfig": true,
       "es6": true,
-      "minifyJS": true
+      "minifyJS": true,
+      "minifyWXML": true,
+      "minifyWXSS": true
     }
   }
 ```
@@ -346,7 +409,7 @@ platform-options: |
     "type": "miniProgram",
     "ignores": ["test/**"],
     "robot": 1,
-    "setting": { "useProjectConfig": true, "minifyJS": true },
+    "setting": { "useProjectConfig": true, "minifyJS": true, "minifyWXML": true, "minifyWXSS": true },
     "preview": { "pagePath": "pages/index/index", "scene": 1011 }
   }
 ```
