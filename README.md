@@ -59,6 +59,9 @@ jobs:
 | `appid` | 平台应用 ID |
 | `private-key` | 微信 / 支付宝私钥文本，从 Secrets 注入 |
 | `upload-version` | 上传版本，默认读取项目 `package.json.version` |
+| [`setting`](docs/inputs.md#setting) | 微信编译 JSON：`es6`、`minifyJS`、`minifyWXML` 等，见全部 11 个子字段 |
+| [`preview`](docs/inputs.md#preview) | 预览 JSON：微信 `pagePath` / `searchQuery`，支付宝 `page` / `pageQuery` |
+| [`platform-options`](docs/inputs.md#platform-options) | 平台 JSON：微信 `type` / `ignores`，支付宝 `clientType`，支付宝 / 钉钉 `autoincrement` |
 | `working-directory` | 执行目录，默认 `.` |
 | `dry-run` | `'true'` 时只校验上传计划 |
 | `config` | 复用项目配置文件，支持多平台 |

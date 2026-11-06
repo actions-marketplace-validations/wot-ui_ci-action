@@ -2,6 +2,16 @@
 
 v2 专注小程序 **上传、预览、配置检查**。普通微信上传只需 4 项：`platform`、`project-path`、`appid`、`private-key`。Action 不安装项目依赖、不执行项目构建；请在前面的步骤完成。
 
+## 对象参数快速入口
+
+| Input | 适用平台 | 子字段说明 |
+| --- | --- | --- |
+| `setting` | 微信 | [11 个编译字段：类型、默认行为和含义](#setting) |
+| `preview` | 微信、支付宝 | [微信 10 个字段](#微信)、[支付宝 7 个字段](#支付宝)，包含嵌套 `preview.setting` |
+| `platform-options` | 微信、支付宝、钉钉 | [按平台列出全部一级字段及嵌套对象](#platform-options) |
+
+这三项在 `with` 中都要写成 **JSON 对象字符串**，不是 YAML 对象。例如 `setting: '{"minifyJS":true}'`，或使用 `setting: |` 换行写 JSON。子字段里的布尔值和数字不用引号；JSON 不支持注释或尾随逗号。除微信编译 `setting` 允许 SDK 扩展字段外，未知字段会在调用 CLI 前报错。
+
 ## 上传必需的信息
 
 | 参数 | 微信 | 支付宝 | 钉钉 |
@@ -49,27 +59,44 @@ robot: '2'
 
 ## 微信编译设置
 
-`setting` 接受 JSON 对象字符串，只用于微信。常用配置：
+### setting
+
+仅用于微信，全部子字段均为可选。直接传 `setting`，或写在 `platform-options.setting`，字段相同。
+
+| 子字段 | JSON 类型 | 省略时的行为 | 含义 |
+| --- | --- | --- | --- |
+| `useProjectConfig` | `boolean` | 顶层编译设置补为 `true` | 使用产物目录中 `project.config.json` 的编译设置 |
+| `es6` | `boolean` | 不指定，由 SDK / 项目配置决定 | ES6 转 ES5 |
+| `es7` | `boolean` | 不指定，由 SDK / 项目配置决定 | 增强编译 |
+| `disableUseStrict` | `boolean` | 不指定，由 SDK / 项目配置决定 | 增强编译时禁用 JS 严格模式 |
+| `minifyJS` | `boolean` | 不指定，由 SDK / 项目配置决定 | 压缩 JavaScript |
+| `minifyWXML` | `boolean` | 不指定，由 SDK / 项目配置决定 | 压缩 WXML |
+| `minifyWXSS` | `boolean` | 不指定，由 SDK / 项目配置决定 | 压缩 WXSS |
+| `minify` | `boolean` | 不指定，由 SDK / 项目配置决定 | 压缩所有代码 |
+| `codeProtect` | `boolean` | 不指定，由 SDK / 项目配置决定 | 代码保护 |
+| `autoPrefixWXSS` | `boolean` | 不指定，由 SDK / 项目配置决定 | 自动补全 WXSS 样式前缀 |
+| `compileWorklet` | `boolean` | 不指定，由 SDK / 项目配置决定 | 编译 worklet 代码 |
+
+“未指定”不等于 `false`。Action 只为顶层 `setting.useProjectConfig` 补默认值，不为其他字段强行设置开关。`true` / `false` 必须是 JSON 布尔值，`"false"` 会因类型错误被拒绝。额外的微信 SDK setting 字段会原样传入，是否生效取决于项目实际使用的 SDK。
+
+常用上传设置可直接复制到 `with`：
 
 ```yaml
-setting: '{"es6":true,"minifyJS":true,"minifyWXML":true,"minifyWXSS":true}'
+setting: |
+  {
+    "useProjectConfig": true,
+    "es6": true,
+    "minifyJS": true,
+    "minifyWXML": true,
+    "minifyWXSS": true
+  }
 ```
 
-| 字段 | 用途 |
-| --- | --- |
-| `useProjectConfig` | 使用产物目录中 `project.config.json` 的编译设置；Action 默认补为 `true` |
-| `es6` | ES6 转 ES5 |
-| `es7` | 增强编译 |
-| `disableUseStrict` | 增强编译时禁用 JS 严格模式 |
-| `minifyJS` / `minifyWXML` / `minifyWXSS` | 分别压缩 JavaScript / WXML / WXSS |
-| `minify` | 压缩代码 |
-| `codeProtect` | 代码保护 |
-| `autoPrefixWXSS` | 自动补全 WXSS 样式前缀 |
-| `compileWorklet` | 编译 worklet 代码 |
-
-以上字段使用 JSON 布尔值 `true` / `false`，不能写成字符串 `"false"`。其余字段不由 Action 设置默认值；额外的微信 SDK setting 字段会原样传入，是否生效取决于所用 SDK。项目设置与显式选项的处理见 [核心配置文档](https://github.com/wot-ui/ci/blob/main/docs/guides/configuration.md#微信-weixin)。
+这些选项传给微信 SDK，Action 本身不执行源码构建；产物仍需提前生成。
 
 ## 预览设置
+
+### preview
 
 `preview` 接受 JSON 对象字符串，用于指定启动页面和平台预览选项；无需定制时省略。只在 `command: preview` 时生效。
 
@@ -90,9 +117,28 @@ preview: '{"pagePath":"pages/index/index","searchQuery":"from=ci"}'
 | `qrcodeOutputDest` | 字符串，可省略 | 二维码路径；通常直接用 `qrcode-output` |
 | `desc` | 字符串，沿用上传备注 | 预览备注 |
 | `robot` | 整数 `1`–`30`，沿用上传机器人 | 预览机器人 |
-| `setting` | 对象，沿用上传编译设置 | 预览专用编译设置，字段同上 |
+| `setting` | 对象，省略整个对象时沿用上传编译设置 | 预览专用的 [11 个编译字段](#setting)，见下面的嵌套示例 |
 | `threads` | 非负整数，由 SDK 决定 | 编译线程数 |
 | `bigPackageSizeSupport` | 布尔值，由 SDK 决定 | 启用大包预览支持 |
+
+`preview.setting` 支持与 `setting` 相同的 11 个布尔字段，但**传入后整体替换上传编译设置，不做逐字段合并**；也不会自动补入 `useProjectConfig: true`。例如上传设置启用了 `es6`，而预览只传 `{"minifyJS":true}`，预览不会自动继承那个 `es6`。需要时明确写出：
+
+```yaml
+command: preview
+qrcode-output: artifacts/preview.png
+preview: |
+  {
+    "pagePath": "pages/index/index",
+    "searchQuery": "from=ci&debug=1",
+    "scene": 1011,
+    "qrcodeFormat": "image",
+    "setting": {
+      "useProjectConfig": true,
+      "es6": true,
+      "minifyJS": true
+    }
+  }
+```
 
 ### 支付宝
 
@@ -106,26 +152,72 @@ preview: '{"pagePath":"pages/index/index","searchQuery":"from=ci"}'
 | `ignoreHttpDomainCheck` | 布尔值 | 忽略 HTTP 域名白名单校验 |
 | `ignoreWebViewDomainCheck` | 布尔值 | 忽略 WebView 域名白名单校验 |
 
-支付宝字段未传时由 SDK 决定。钉钉不支持 `preview`。
+支付宝字段均可省略；未传时由 SDK 决定。支付宝不支持 `preview.setting`、`pagePath` 或 `searchQuery`，应使用下面的字段名。钉钉不支持 `preview`。
+
+```yaml
+command: preview
+qrcode-output: artifacts/alipay-preview.png
+preview: |
+  {
+    "page": "pages/index/index",
+    "pageQuery": "from=ci",
+    "query": "debug=1",
+    "scene": "ci",
+    "autoPush": false
+  }
+```
 
 ## 其他平台选项
 
-`platform-options` 是 JSON 对象字符串，日常上传可省略。只接受下列一级字段，不能把凭据、App ID 或产物路径放在这里。
+### platform-options
 
-| 平台 | 字段 | 类型 / 默认行为 |
-| --- | --- | --- |
-| 微信 | `type` | 默认 `miniProgram`；还可选 `miniGame`、`miniProgramPlugin`、`miniGamePlugin` |
-| 微信 | `ignores` | 字符串数组，例如 `["test/**"]`，默认不额外指定 |
-| 微信 | `robot`、`setting`、`preview` | 同前文，优先级低于对应专用 input 及其环境变量 |
-| 支付宝 | `clientType` | 默认 `alipay`，指定应用终端 |
-| 支付宝、钉钉 | `autoincrement` | 布尔值，默认关闭；开启时由平台递增上传版本 |
-| 支付宝 | `preview` | 同前文，低于专用 input 及其环境变量 |
+JSON 对象字符串，所有子字段均可省略；只接受当前平台的下列字段。凭据、App ID 和产物路径使用专用 inputs，不放在这个对象里。
+
+| 平台 | 子字段 | JSON 类型 | 默认行为 / 取值 |
+| --- | --- | --- | --- |
+| 微信 | `type` | `string` | 默认 `miniProgram`；还可选 `miniGame`、`miniProgramPlugin`、`miniGamePlugin` |
+| 微信 | `ignores` | `string[]` | 默认不额外传排除列表；例如 `["test/**", "node_modules/**"]` |
+| 微信 | `robot` | `number`（整数） | `1`–`30`，缺省为 `1`；专用 `robot` input / `WEIXIN_ROBOT` 优先 |
+| 微信 | `setting` | `object` | [全部 11 个子字段](#setting)；缺省补 `{ "useProjectConfig": true }` |
+| 微信 | `preview` | `object` | [全部 10 个子字段](#微信)；只在预览时使用 |
+| 支付宝 | `clientType` | `string` | 默认 `alipay`；完整枚举见下文 |
+| 支付宝 | `autoincrement` | `boolean` | 默认关闭；开启时由平台递增上传版本 |
+| 支付宝 | `preview` | `object` | [全部 7 个子字段](#支付宝)；只在预览时使用 |
+| 钉钉 | `autoincrement` | `boolean` | 默认关闭；开启时由平台递增上传版本 |
 
 `clientType` 可选：`alipay`、`ampe`、`amap`、`genie`、`alios`、`uc`、`quark`、`koubei`、`alipayiot`、`cainiao`、`alihealth`、`health`。选择应用实际所属终端。
 
+微信嵌套示例（可以只保留需要的字段）：
+
 ```yaml
-platform-options: '{"type":"miniProgram","ignores":["test/**"]}'
+platform-options: |
+  {
+    "type": "miniProgram",
+    "ignores": ["test/**"],
+    "robot": 1,
+    "setting": { "useProjectConfig": true, "minifyJS": true },
+    "preview": { "pagePath": "pages/index/index", "scene": 1011 }
+  }
 ```
+
+支付宝：
+
+```yaml
+platform-options: |
+  {
+    "clientType": "alipay",
+    "autoincrement": true,
+    "preview": { "page": "pages/index/index", "autoPush": false }
+  }
+```
+
+钉钉只接受一个子字段：
+
+```yaml
+platform-options: '{"autoincrement":true}'
+```
+
+这里的 `setting`、`preview` 已在 JSON 内部，因此直接写对象，不要再次编码成 JSON 字符串。例如 `"setting": {"es6":true}` 正确，`"setting": "{...}"` 会被拒绝。
 
 JSON 对象按整体覆盖，不做逐字段合并：专用 input → 专用环境变量 → `platform-options` 中的同名对象。`platform-options` 本身也整体优先于对应 `*_OPTIONS`。只有微信顶层 `setting.useProjectConfig` 缺省时补为 `true`。
 
