@@ -50,11 +50,11 @@ export function validateInputs(env = process.env) {
       throw new Error('Invalid Action inputs')
     // Never log input values: credentials may be included in this object.
     if (Object.keys(inputs).some(key => !inputNames.includes(key)))
-      throw new Error('发现不支持的 input；v2 已精简接口，请按 docs/migration.md 迁移或使用 @v1')
+      throw new Error('发现不支持的 input；v2 已精简接口，请按 README 的“迁移到 v2”章节 迁移或使用 @v1')
   }
   for (const name of removedInputs) {
     if (env[`INPUT_${name.toUpperCase().replaceAll('-', '_')}`])
-      throw new Error(`v2 已移除 ${name}；请按 docs/migration.md 迁移或使用 @v1`)
+      throw new Error(`v2 已移除 ${name}；请按 README 的“迁移到 v2”章节 迁移或使用 @v1`)
   }
   const command = env.INPUT_COMMAND || 'upload'
   if (!['upload', 'preview', 'doctor'].includes(command))
