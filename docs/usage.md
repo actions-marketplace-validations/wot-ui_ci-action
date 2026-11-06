@@ -103,7 +103,7 @@ jobs:
 - 微信默认使用 `miniProgram` 项目类型及 `setting.useProjectConfig: true`；支付宝、钉钉默认关闭平台版本自动递增。平台扩展选项可通过下方 JSON inputs 配置；顶层 `versionStrategy`、`budgets`、`release` 编排仍使用配置文件。
 - Action 生成的配置与私钥放在临时目录，正常结束或 CLI 报错时均清理。不会把私钥或 token 拼入命令行日志。
 
-完整参数和编译、预览设置见 [Action 参数参考](inputs.md)。
+完整参数和编译、预览设置见 [Action 参数参考](inputs.md)：[模式选择](inputs.md#先选择配置模式)、[全部环境变量](inputs.md#环境变量对照)、[monorepo 路径示例](inputs.md#路径与-monorepo-示例)、[参数排错](inputs.md#参数排错)。
 
 ## 复用配置文件
 

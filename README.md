@@ -49,6 +49,10 @@ jobs:
 
 ## 常用参数
 
+这里只列常用项；[完整参数手册](docs/inputs.md) 逐项说明全部 30 个 inputs 的类型、默认值、平台要求、优先级和互斥规则。
+
+[配置模式](docs/inputs.md#先选择配置模式) · [环境变量](docs/inputs.md#环境变量对照) · [编译与预览 JSON 字段](docs/inputs.md#编译预览与平台扩展参数) · [参数排错](docs/inputs.md#参数排错)
+
 | 参数 | 说明 |
 | --- | --- |
 | `command` | 默认 `upload`；生成二维码用 `preview`，检查配置用 `doctor` |
