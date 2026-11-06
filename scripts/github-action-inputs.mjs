@@ -50,15 +50,15 @@ export function validateInputs(env = process.env) {
       throw new Error('Invalid Action inputs')
     // Never log input values: credentials may be included in this object.
     if (Object.keys(inputs).some(key => !inputNames.includes(key)))
-      throw new Error('发现不支持的 input；v2 已精简接口，请按 README 的“迁移到 v2”章节 迁移或使用 @v1')
+      throw new Error('发现不支持的 input；请查看 README 的“参数参考”章节')
   }
   for (const name of removedInputs) {
     if (env[`INPUT_${name.toUpperCase().replaceAll('-', '_')}`])
-      throw new Error(`v2 已移除 ${name}；请按 README 的“迁移到 v2”章节 迁移或使用 @v1`)
+      throw new Error(`不支持 input ${name}；请查看 README 的“参数参考”章节`)
   }
   const command = env.INPUT_COMMAND || 'upload'
   if (!['upload', 'preview', 'doctor'].includes(command))
-    throw new Error('command 仅支持 upload / preview / doctor；其他命令请直接使用 CLI 或 @v1')
+    throw new Error('command 仅支持 upload / preview / doctor；其他命令请直接使用 CLI')
   if (env.INPUT_QRCODE_OUTPUT && command !== 'preview')
     throw new Error('qrcode-output 仅用于 command: preview')
 }

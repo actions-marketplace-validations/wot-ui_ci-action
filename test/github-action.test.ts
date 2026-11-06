@@ -80,7 +80,7 @@ describe.skipIf(process.platform === 'win32')('github-action.sh', () => {
         encoding: 'utf8',
       })
       expect(result.status).toBe(1)
-      expect(result.stderr).toContain('v2')
+      expect(result.stderr).toContain('参数参考')
       expect(result.stderr).not.toContain('secret-not-to-log')
       await expect(readFile(outputFile)).rejects.toThrow()
     }
